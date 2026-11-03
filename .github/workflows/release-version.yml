@@ -1,0 +1,36 @@
+name: Publish release version metadata
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  version-metadata:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify release tag and packaged version agree
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          from scripts.check_update import read_version
+          version = read_version('VERSION')
+          if os.environ['RELEASE_TAG'] != 'v' + version:
+              raise SystemExit('Release tag must equal v + VERSION')
+          PY
+      - name: Attach version file for direct and mirrored checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" VERSION --repo "$GITHUB_REPOSITORY" --clobber
